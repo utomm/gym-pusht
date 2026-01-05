@@ -39,13 +39,13 @@ def pymunk_to_shapely(body, shapes):
     return geom
 
 
-class PushTEnv(gym.Env):
+class PushT2Env(gym.Env):
     """
     ## Description
 
-    PushT environment.
+    PushT2 environment.
 
-    The goal of the agent is to push the block to the goal zone. The agent is a circle and the block is a tee shape.
+    The goal of the agent is to push the block to the two goal zones, one by one. The agent is a circle and the block is a tee shape.
 
     ## Action Space
 
@@ -180,7 +180,9 @@ class PushTEnv(gym.Env):
         self.teleop = None
         self._last_action = None
 
-        self.success_threshold = 0.95  # 95% coverage
+        self.success_threshold = (
+            0.90  # 90% coverage, 95% for PushTEnv and that is too hard.
+        )
 
     def _initialize_observation_space(self):
         if self.obs_type == "state":
