@@ -45,7 +45,8 @@ class PushT2Env(gym.Env):
 
     PushT2 environment.
 
-    The goal of the agent is to push the block to the two goal zones, one by one. The agent is a circle and the block is a tee shape.
+    The goal of the agent is to push the block to two goal zones, one after the other. The agent is a circle and the block is a tee shape.
+    The two goals are fixed at upper left and bottom right positions.
 
     ## Action Space
 
@@ -68,11 +69,11 @@ class PushT2Env(gym.Env):
 
     ## Rewards
 
-    The reward is the coverage of the block in the goal zone. The reward is 1.0 if the block is fully in the goal zone.
+    The reward is 0.5 for each goal zone covered (first time only). Maximum reward is 1.0 when both goals are reached.
 
     ## Success Criteria
 
-    The environment is considered solved if the block is at least 95% in the goal zone.
+    The environment is considered solved if both goal zones have been covered by at least 90% each.
 
     ## Starting State
 
@@ -80,7 +81,7 @@ class PushT2Env(gym.Env):
 
     ## Episode Termination
 
-    The episode terminates when the block is at least 95% in the goal zone.
+    The episode terminates when both goal zones have been covered by at least 90% each.
 
     ## Arguments
 
@@ -106,6 +107,13 @@ class PushT2Env(gym.Env):
     * `visualization_width`: (int) The width of the visualized image. Default is `680`.
 
     * `visualization_height`: (int) The height of the visualized image. Default is `680`.
+
+    * `success_threshold`: (float) The coverage threshold (0.0 to 1.0) required for a goal to be considered reached.
+      Default is `0.90` (90% coverage).
+
+    * `visualize_goal_progress`: (bool) Whether to visualize which goals have been reached by changing their color.
+      If `True`, reached goals turn blue. If `False`, all goals remain green. Default is `False` to prevent the
+      policy from observing goal progress through pixel observations.
 
     ## Reset Arguments
 
@@ -146,6 +154,8 @@ class PushT2Env(gym.Env):
         observation_height=96,
         visualization_width=680,
         visualization_height=680,
+        success_threshold=0.90,
+        visualize_goal_progress=False,
     ):
         super().__init__()
         # Observations
@@ -181,8 +191,15 @@ class PushT2Env(gym.Env):
         self._last_action = None
 
         self.success_threshold = (
-            0.90  # 90% coverage, 95% for PushTEnv and that is too hard.
+            success_threshold  # 90% coverage for each goal by default
         )
+        self.visualize_goal_progress = (
+            visualize_goal_progress  # Whether to show visual feedback of reached goals
+        )
+
+        # Track which goals have been reached
+        self.goal_1_reached = False
+        self.goal_2_reached = False
 
     def _initialize_observation_space(self):
         if self.obs_type == "state":
@@ -236,8 +253,8 @@ class PushT2Env(gym.Env):
                 "pixels_agent_pos]"
             )
 
-    def _get_coverage(self):
-        goal_body = self.get_goal_pose_body(self.goal_pose)
+    def _get_coverage(self, goal_pose):
+        goal_body = self.get_goal_pose_body(goal_pose)
         goal_geom = pymunk_to_shapely(goal_body, self.block.shapes)
         block_geom = pymunk_to_shapely(self.block, self.block.shapes)
         intersection_area = goal_geom.intersection(block_geom).area
@@ -259,15 +276,30 @@ class PushT2Env(gym.Env):
             # Step physics
             self.space.step(self.dt)
 
-        # Compute reward
-        coverage = self._get_coverage()
-        reward = np.clip(coverage / self.success_threshold, 0.0, 1.0)
-        terminated = is_success = coverage > self.success_threshold
+        # Compute coverage for both goals
+        coverage_1 = self._get_coverage(self.goal_pose_1)
+        coverage_2 = self._get_coverage(self.goal_pose_2)
+
+        # Update goal reached flags and calculate reward
+        reward = 0.0
+        if coverage_1 > self.success_threshold and not self.goal_1_reached:
+            self.goal_1_reached = True
+            reward += 0.5
+        if coverage_2 > self.success_threshold and not self.goal_2_reached:
+            self.goal_2_reached = True
+            reward += 0.5
+
+        # Success only when both goals are reached
+        is_success = self.goal_1_reached and self.goal_2_reached
+        terminated = is_success
 
         observation = self.get_obs()
         info = self._get_info()
         info["is_success"] = is_success
-        info["coverage"] = coverage
+        info["coverage_goal_1"] = coverage_1
+        info["coverage_goal_2"] = coverage_2
+        info["goal_1_reached"] = self.goal_1_reached
+        info["goal_2_reached"] = self.goal_2_reached
 
         truncated = False
         return observation, reward, terminated, truncated, info
@@ -275,6 +307,10 @@ class PushT2Env(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self._setup()
+
+        # Reset goal tracking
+        self.goal_1_reached = False
+        self.goal_2_reached = False
 
         if options is not None and options.get("reset_to_state") is not None:
             state = np.array(options.get("reset_to_state"))
@@ -306,16 +342,29 @@ class PushT2Env(gym.Env):
         screen.fill((255, 255, 255))
         draw_options = DrawOptions(screen)
 
-        # Draw goal pose
-        goal_body = self.get_goal_pose_body(self.goal_pose)
-        for shape in self.block.shapes:
-            goal_points = [goal_body.local_to_world(v) for v in shape.get_vertices()]
-            goal_points = [
-                pymunk.pygame_util.to_pygame(point, draw_options.surface)
-                for point in goal_points
-            ]
-            goal_points += [goal_points[0]]
-            pygame.draw.polygon(screen, pygame.Color("LightGreen"), goal_points)
+        # Draw both goal poses
+        for goal_pose, reached in [
+            (self.goal_pose_1, self.goal_1_reached),
+            (self.goal_pose_2, self.goal_2_reached),
+        ]:
+            goal_body = self.get_goal_pose_body(goal_pose)
+            # Only show different colors for reached goals if visualize_goal_progress is True
+            if self.visualize_goal_progress:
+                color = (
+                    pygame.Color("LightBlue") if reached else pygame.Color("LightGreen")
+                )
+            else:
+                color = pygame.Color("LightGreen")  # Always show same color
+            for shape in self.block.shapes:
+                goal_points = [
+                    goal_body.local_to_world(v) for v in shape.get_vertices()
+                ]
+                goal_points = [
+                    pymunk.pygame_util.to_pygame(point, draw_options.surface)
+                    for point in goal_points
+                ]
+                goal_points += [goal_points[0]]
+                pygame.draw.polygon(screen, color, goal_points)
 
         # Draw agent and block
         self.space.debug_draw(draw_options)
@@ -438,7 +487,8 @@ class PushT2Env(gym.Env):
             "pos_agent": np.array(self.agent.position),
             "vel_agent": np.array(self.agent.velocity),
             "block_pose": np.array(list(self.block.position) + [self.block.angle]),
-            "goal_pose": self.goal_pose,
+            "goal_pose_1": self.goal_pose_1,
+            "goal_pose_2": self.goal_pose_2,
             "n_contacts": n_contact_points_per_step,
         }
         return info
@@ -461,10 +511,18 @@ class PushT2Env(gym.Env):
         ]
         self.space.add(*walls)
 
-        # Add agent, block, and goal zone
+        # Add agent, block, and goal zones
         self.agent = self.add_circle(self.space, (256, 400), 15)
         self.block, self._block_shapes = self.add_tee(self.space, (256, 300), 0)
-        self.goal_pose = np.array([256, 256, np.pi / 4])  # x, y, theta (in radians)
+
+        # Two fixed goal poses: upper left and bottom right
+        self.goal_pose_1 = np.array(
+            [200, 150, np.pi / 4]
+        )  # upper left: x, y, theta (in radians)
+        self.goal_pose_2 = np.array(
+            [350, 300, 0]
+        )  # bottom right: x, y, theta (in radians)
+
         if self.block_cog is not None:
             self.block.center_of_gravity = self.block_cog
 
