@@ -9,6 +9,7 @@ env = gym.make(
     render_mode="human",
     visualize_goal_progress=False,
     success_threshold=0.90,
+    obs_type="pixels_agent_pos",
 )
 observation, info = env.reset()
 
@@ -45,6 +46,7 @@ while running:
 
     # Only step the environment if teleoperation is active
     if action is not None:
+        print(f"observation: {observation} action: {action}")
         # Step the environment
         observation, reward, terminated, truncated, info = env.step(action)
         total_reward += reward

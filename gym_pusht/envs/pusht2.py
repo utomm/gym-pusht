@@ -400,10 +400,13 @@ class PushT2Env(gym.Env):
         )
         screen = self._draw()  # draw the environment on a screen
 
+        # Always generate the image array for observations
+        img_array = self._get_img(
+            screen, width=width, height=height, render_action=visualize
+        )
+
         if self.render_mode == "rgb_array":
-            return self._get_img(
-                screen, width=width, height=height, render_action=visualize
-            )
+            return img_array
         elif self.render_mode == "human":
             if self.window is None:
                 pygame.init()
@@ -420,6 +423,8 @@ class PushT2Env(gym.Env):
                 self.metadata["render_fps"] * int(1 / (self.dt * self.control_hz))
             )
             pygame.display.update()
+            # Return the image array for observations even in human mode
+            return img_array
         else:
             raise ValueError(self.render_mode)
 
