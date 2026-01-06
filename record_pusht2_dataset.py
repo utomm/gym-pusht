@@ -137,11 +137,15 @@ def record_pusht2_teleop(
     print(f"Starting from episode: {start_episode}")
     print(f"Episodes to record: {num_episodes}")
     print(f"FPS: {fps}")
+    print(f"Max steps per episode: 300")
     print(f"Observation type: {obs_type}")
+    print(
+        "\n⚠️  IMPORTANT: Only successful episodes (both goals reached) will be saved!"
+    )
     print("\nControls:")
     print("  - Move mouse close to the red agent to start")
     print("  - Agent will follow your mouse")
-    print("  - Complete episode by reaching both goals")
+    print("  - Complete episode by reaching BOTH goals within 300 steps")
     print("  - Press ESC to skip episode or 'q' to quit")
     print("=" * 70)
 
@@ -163,12 +167,14 @@ def record_pusht2_teleop(
 
             episode_frames = []
             frame_index = 0  # Track frame index for consistent timestamps
+            max_steps = 300  # Maximum 300 steps per episode
             timestamp = 0.0
             start_episode_t = time.perf_counter()
             skip_episode = False
             quit_recording = False
+            episode_success = False
 
-            while timestamp < episode_time_s:
+            while frame_index < max_steps:
                 start_loop_t = time.perf_counter()
 
                 # Handle pygame events
@@ -248,9 +254,8 @@ def record_pusht2_teleop(
 
                     # Check if episode is done
                     if terminated:
-                        print(
-                            f"  ✅ Episode complete! Success: {info.get('is_success', False)}"
-                        )
+                        episode_success = info.get("is_success", False)
+                        print(f"  ✅ Episode complete! Success: {episode_success}")
                         break
 
                 # Render
@@ -273,9 +278,11 @@ def record_pusht2_teleop(
                 print("Episode skipped")
                 continue
 
-            # Save episode if we have frames
-            if len(episode_frames) > 0:
-                print(f"  💾 Saving episode with {len(episode_frames)} frames...")
+            # Only save episode if it was successful (both goals reached)
+            if episode_success and len(episode_frames) > 0:
+                print(
+                    f"  💾 Saving successful episode with {len(episode_frames)} frames..."
+                )
 
                 # Add frames to dataset
                 for frame in episode_frames:
@@ -291,7 +298,15 @@ def record_pusht2_teleop(
                     print("\n  Waiting 2 seconds before next episode...")
                     time.sleep(2)
             else:
-                print("  ⚠️  No frames recorded (teleoperation not activated)")
+                if not episode_success:
+                    print(
+                        f"  ❌ Episode NOT saved - did not complete successfully (frames: {len(episode_frames)}, max: {max_steps})"
+                    )
+                    print("     Try again to reach both goals!")
+                elif len(episode_frames) == 0:
+                    print("  ⚠️  No frames recorded (teleoperation not activated)")
+                # Clear the episode buffer for failed episodes
+                dataset.episode_buffer = dataset.create_episode_buffer()
 
     finally:
         env.close()
