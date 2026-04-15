@@ -2,8 +2,11 @@
 
 A gymnasium environment PushT.
 
-<img src="http://remicadene.com/assets/gif/pusht_diffusion.gif" width="50%" alt="Diffusion policy on PushT env"/>
+<img src="http://remicadene.com/assets/gif/pusht_diffusion.gif" width="33%" alt="Diffusion policy on PushT env"/>
 
+and a extended environment PushT2.
+
+<img width="384" height="384" alt="ezgif-72a6ae78df1830ae" src="https://github.com/user-attachments/assets/422e2e78-793f-4acb-924f-506af7641c50" />
 
 ## Installation
 
@@ -25,7 +28,7 @@ pip install gym-pusht
 import gymnasium as gym
 import gym_pusht
 
-env = gym.make("gym_pusht/PushT-v0", render_mode="human")
+env = gym.make("gym_pusht/PushT2-v0", render_mode="human")
 observation, info = env.reset()
 
 for _ in range(1000):
