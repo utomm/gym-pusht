@@ -17,7 +17,7 @@ conda create -y -n pusht python=3.10 && conda activate pusht
 
 Install gym-pusht:
 ```bash
-pip install gym-pusht
+pip install .
 ```
 
 
