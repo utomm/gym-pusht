@@ -8,6 +8,16 @@ and a extended environment PushT2.
 
 <img width="384" height="384" alt="ezgif-72a6ae78df1830ae" src="https://github.com/user-attachments/assets/422e2e78-793f-4acb-924f-506af7641c50" />
 
+## Dataset
+
+you can download Lerobot dataset for PushT2 here:
+
+dataset v2.0 (for Lerobot ~v0.2): https://huggingface.co/datasets/you2who/pusht2-teleop
+
+dataset v3.0 (for Lerobot >v0.4): https://huggingface.co/datasets/you2who/pusht2-teleop-v30
+
+for lerobot training, use `--dataset.repo_id=you2who/pusht2-teleop-v30`
+
 ## Installation
 
 Create a virtual environment with Python 3.10 and activate it, e.g. with [`miniconda`](https://docs.anaconda.com/free/miniconda/index.html):
